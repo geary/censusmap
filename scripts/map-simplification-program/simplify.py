@@ -30,7 +30,7 @@ from string import *
 import math
 import re
 
-import psycopg
+import psycopg2
 
 import polyYacc
 
@@ -49,7 +49,7 @@ def 	simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname) :
 	com = 'select id from %s limit 1'%vertex	
 	try :
 		cur.execute(com)		
-	except psycopg.DatabaseError: # if not
+	except psycopg2.DatabaseError: # if not
                 print "an error occured with the data base. Maybe the vertex table does not exist ?"
                 sys.exit()
 		
@@ -84,7 +84,7 @@ def 	simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname) :
 	# exception if this table does not exist
 	try:
 		cur.execute(com)
-	except psycopg.DatabaseError:
+	except psycopg2.DatabaseError:
 		pass
 	connexion.commit()
 
@@ -95,7 +95,7 @@ def 	simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname) :
 	com = com + "  AND f_geometry_column = '%s'"%xtraCol
 	try:
 		cur.execute(com)
-	except psycopg.DatabaseError:
+	except psycopg2.DatabaseError:
 		pass
 	connexion.commit()	
 	# create the onew column
@@ -242,7 +242,7 @@ def main() :
 
 				
 	# connect to the database		
-	connexion = psycopg.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(user,pwd,hostname,dbase))
+	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(user,pwd,hostname,dbase))
 	cur = connexion.cursor()
 	# simplification function
 	simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname)

@@ -29,7 +29,7 @@ from string import *
 import math
 import re
 
-import psycopg
+import psycopg2
 
 import polyYacc
 
@@ -56,7 +56,7 @@ def createVertex(schemaVertex,tableVertex,sequence) :
 	try:
 		cur.execute(com)
                 connexion.commit()
-	except psycopg.DatabaseError:
+	except psycopg2.DatabaseError:
 		pass
         connexion.commit()
 
@@ -65,7 +65,7 @@ def createVertex(schemaVertex,tableVertex,sequence) :
 	# catch the exception if the sequence does not exist
 	try:
 		cur.execute(com)
-	except psycopg.DatabaseError:
+	except psycopg2.DatabaseError:
 		pass
 	connexion.commit()
 
@@ -374,7 +374,7 @@ def main() :
 
 
 	# connect to the database
-	connexion = psycopg.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(user,pwd,hostname,dbase))
+	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(user,pwd,hostname,dbase))
 	cur = connexion.cursor()       
 	# simplification function
         vertex(schemaVertex,tableIn,colGeo,colId,dmin)

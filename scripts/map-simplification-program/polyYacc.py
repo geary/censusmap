@@ -1,5 +1,5 @@
 
-import yacc
+from ply import yacc
 import polyLex
 
 # Get the token map
