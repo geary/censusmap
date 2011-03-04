@@ -1,3 +1,4 @@
 \.pyc$
-map-simplification-program/parser.out
-map-simplification-program/parsetab.py
+^scripts/map-simplification-program/parser\.out
+^scripts/map-simplification-program/parsetab\.py
+^scripts/private\.py$
