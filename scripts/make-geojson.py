@@ -30,6 +30,8 @@ def process():
 			ST_AsGeoJSON( %(geometry)s, 0, 1 )
 		FROM 
 			%(table)s
+		WHERE
+			aland10 > 0
 		;
 	''' % {
 		'table': opt.table,
