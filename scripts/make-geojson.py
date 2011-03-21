@@ -5,6 +5,24 @@ from optparse import OptionParser
 import psycopg2
 
 
+def columnExists( table, column ):
+	cursor.execute('''
+		SELECT
+			attname
+		FROM
+			pg_attribute
+		WHERE
+			attrelid = (
+				SELECT oid FROM pg_class WHERE relname = '%(table)s'
+			) AND attname = '%(column)s'
+		;
+	''' % {
+		'table': table,
+		'column': column,
+	})
+	return cursor.fetchone() is not None
+
+
 def process():
 	
 	cursor.execute('''
