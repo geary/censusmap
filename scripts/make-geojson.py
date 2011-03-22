@@ -23,18 +23,58 @@ def columnExists( table, column ):
 	return cursor.fetchone() is not None
 
 
-def process():
-	
+def censusTableName( year, fips, kind ):
+	return 'tl_2010_%s_%s%s' %( fips, kind, year )
+
+
+def addGoogleGeometry():
+	if columnExists( opt.table, opt.geometry ):
+		return
 	cursor.execute('''
 		SELECT
-			ST_AsGeoJSON( ST_Centroid( ST_Extent( %(geometry)s ) ), 0 ),
-			ST_AsGeoJSON( ST_Extent( %(geometry)s ), 0, 1 )
-		FROM 
+			AddGeometryColumn(
+				'public', '%(table)s', 'goog_geom', 3857, 'MULTIPOLYGON', 2
+			)
+		;
+		UPDATE
 			%(table)s
+		SET
+			goog_geom = ST_Transform(
+				ST_SetSRID( the_geom, 4269 ),
+				3857
+			)
 		;
 	''' % {
 		'table': opt.table,
-		'geometry': opt.geometry,
+	})
+	connection.commit()
+
+
+def makeGeoJSON( level ):
+	
+	# Temp filter for NYC test
+	filter = '''
+		(
+			countyfp10 = '005' OR
+			countyfp10 = '047' OR
+			countyfp10 = '061' OR
+			countyfp10 = '081' OR
+			countyfp10 = '085'
+		)
+	'''
+	
+	cursor.execute('''
+		SELECT
+			ST_AsGeoJSON( ST_Centroid( ST_Extent( goog_geom ) ), 0 ),
+			ST_AsGeoJSON( ST_Extent( goog_geom ), 0, 1 )
+		FROM 
+			%(table)s
+		WHERE
+			%(filter)s
+		;
+	''' % {
+		'table': opt.table,
+		'filter': filter,
 	})
 	( extentcentroidjson, extentjson ) = cursor.fetchone()
 	extentcentroid = json.loads( extentcentroidjson )
@@ -44,16 +84,18 @@ def process():
 		SELECT
 			geoid10, namelsad10,
 			intptlat10, intptlon10, 
-			ST_AsGeoJSON( ST_Centroid( %(geometry)s ), 0, 1 ),
-			ST_AsGeoJSON( %(geometry)s, 0, 1 )
+			ST_AsGeoJSON( ST_Centroid( goog_geom ), 0, 1 ),
+			ST_AsGeoJSON( goog_geom%(level)s, 0, 1 )
 		FROM 
 			%(table)s
 		WHERE
-			aland10 > 0
+			%(filter)s
+			AND aland10 > 0
 		;
 	''' % {
 		'table': opt.table,
-		'geometry': opt.geometry,
+		'level': level or '',
+		'filter': filter,
 	})
 	features = []
 	for fips, name, lat, lng, centroidjson, geomjson in cursor.fetchall():
@@ -91,8 +133,14 @@ def process():
 		'features': features,
 	}
 	fcjson = json.dumps( featurecollection )
-	file( '../web/test/geotest.json', 'wb' ).write( fcjson )
+	filename = '../web/test/%s-%s.json' %( opt.table, level or '0' )
+	file( filename, 'wb' ).write( fcjson )
 
+
+def process():
+	addGoogleGeometry()
+	for level in ( '', '10', '100', '1000', '10000' ):
+		makeGeoJSON( level )
 
 def main():
 	global connection, cursor
