@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	
+	<title>PolyGonzo Test</title>
+	
+	<!--
+		By Michael Geary - http://mg.to/
+		See UNLICENSE or http://unlicense.org/ for public domain notice.
+	-->
+
+	<!--<link type="text/css" href="css/polytest.css" rel="stylesheet" />-->
+	
+	<!--<script type="text/javascript">-->
+	<!--	if( ! window.JSON )-->
+	<!--		document.write( '<script type="text/javascript" src="json2.js"><\/script>' );-->
+	<!--</script>-->
+	
+	<script type="text/javascript" src="http://www.google.com/jsapi">
+	</script>
+	<script type="text/javascript">
+		(function() {
+			//google.load( 'jquery', '1.5.1' );
+			google.load( 'jquery', '1.5.1', { uncompressed:true } );
+			google.load( 'maps', '3.3', { other_params: 'sensor=false' } );
+		})();
+	</script>
+	
+	<script type="text/javascript" src="polygonzo.js"></script>
+	<script type="text/javascript" src="polytest.js"></script>
+	
+</head>
+
+<body>
+	
+	<div style="margin:20px;">
+		
+		<div id="where" style="margin-bottom:10px;">
+			&nbsp;
+		</div>
+		
+		<div id="map" style="width:800px; height:600px; border:1px solid #AAA;">
+			&nbsp;
+		</div>
+		
+	</div>
+	
+</body>
+
+</html>
