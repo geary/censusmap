@@ -6,15 +6,17 @@ state = '36'
 kind = 'county'
 table = pg.censusTableName( '10', state, kind )
 
+source = 'blockgroup'
 geom = 'the_geom_land'
 googGeom = 'goog_geom_land'
 
 
 def process():
-	db.addGoogleGeometry( table, geom, googGeom )
+	#db.addGoogleGeometry( table, geom, googGeom )
 	#for level in ( '', '10', '100', '1000', '10000' ):
 	#	db.makeGeoJSON( opt.table, level )
-	db.makeGeoJSON( table, googGeom, '' )
+	filename = '../web/test/%s-%s%s.json' %( table, source, level )
+	db.makeGeoJSON( filename, table, googGeom, '' )
 
 
 def main():

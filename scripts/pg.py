@@ -12,10 +12,11 @@ def censusTableName( year, fips, kind ):
 class Database:
 	
 	def __init__( self, **kw ):
+		self.database = kw.get( 'database' )
 		self.connection = psycopg2.connect(
 			host = kw.get( 'host', 'localhost' ),
 			port = kw.get( 'port', '5432' ),
-			database = kw.get( 'database' ),
+			database = self.database,
 			user = kw.get( 'user', private.POSTGRES_USERNAME ),
 			password = kw.get( 'password', private.POSTGRES_PASSWORD ),
 		)
@@ -98,7 +99,7 @@ class Database:
 		})
 		self.connection.commit()
 	
-	def makeGeoJSON( self, table, geom, level ):
+	def makeGeoJSON( self, filename, table, geom, level ):
 		
 		# Temp filter for NYC test
 		filter = '''
@@ -193,7 +194,6 @@ class Database:
 			'features': features,
 		}
 		fcjson = json.dumps( featurecollection )
-		filename = '../web/test/%s-%s.json' %( table, level or '0' )
 		file( filename, 'wb' ).write( fcjson )
 
 
