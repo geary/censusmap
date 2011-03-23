@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import json
+import json, os, os.path, shutil, tempfile
 import psycopg2
+from zipfile import ZipFile
 
 import private
 
@@ -21,6 +22,31 @@ class Database:
 			password = kw.get( 'password', private.POSTGRES_PASSWORD ),
 		)
 		self.cursor = self.connection.cursor()
+	
+	def loadShapeZip( self, zipfile, tablename ):
+		zipname = os.path.basename( zipfile )
+		basename = os.path.splitext( zipname )[0]
+		shpname = basename + '.shp'
+		sqlname = basename + '.sql'
+		unzipdir = tempfile.mkdtemp()
+		print 'Unzipping %s' % zipname
+		ZipFile( zipfile, 'r' ).extractall( unzipdir )
+		shpfile = os.path.join( unzipdir, shpname )
+		sqlfile = os.path.join( unzipdir, sqlname )
+		print 'Running shp2pgsql'
+		os.system(
+			'shp2pgsql %s %s %s >%s' %(
+				shpfile, tablename, self.database, sqlfile
+			)
+		)
+		print 'Running psql'
+		os.system(
+			'psql -q -U postgres -d census -f %s' %(
+				sqlfile
+			)
+		)
+		shutil.rmtree( unzipdir )
+		print 'loadShapeZip done'
 	
 	def columnExists( self, table, column ):
 		self.cursor.execute('''
