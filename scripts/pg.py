@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import json, os, os.path, shutil, tempfile
+import json, os, os.path, shutil, tempfile, time
 import psycopg2
 from zipfile import ZipFile
 
 import private
+
 
 def censusTableName( year, fips, kind ):
 	return 'tl_2010_%s_%s%s' %( fips, kind, year )
@@ -33,20 +34,34 @@ class Database:
 		ZipFile( zipfile, 'r' ).extractall( unzipdir )
 		shpfile = os.path.join( unzipdir, shpname )
 		sqlfile = os.path.join( unzipdir, sqlname )
+		t1 = time.clock()
 		print 'Running shp2pgsql'
 		os.system(
 			'shp2pgsql %s %s %s >%s' %(
 				shpfile, tablename, self.database, sqlfile
 			)
 		)
+		t2 = time.clock()
+		print 'shp2pgsql %.1f seconds' %( t2 - t1 )
 		print 'Running psql'
 		os.system(
 			'psql -q -U postgres -d census -f %s' %(
 				sqlfile
 			)
 		)
+		t3 = time.clock()
+		print 'psql %.1f seconds' %( t3 - t2 )
 		shutil.rmtree( unzipdir )
 		print 'loadShapeZip done'
+	
+	def getSRID( self, table, column ):
+		self.cursor.execute('''
+			SELECT Find_SRID( 'public', '%(table)s', '%(column)s');
+		''' % {
+			'table': table,
+			'column': column,
+		})
+		return self.cursor.fetchone()[0]
 	
 	def columnExists( self, table, column ):
 		self.cursor.execute('''
@@ -66,6 +81,8 @@ class Database:
 		return self.cursor.fetchone() is not None
 	
 	def addGeometryColumn( self, table, geom, srid=-1, always=False ):
+		print 'addGeometryColumn %s %s' %( table, geom )
+		t1 = time.clock()
 		vars = { 'table':table, 'geom':geom, 'srid':srid, }
 		if self.columnExists( table, geom ):
 			if not always:
@@ -81,10 +98,41 @@ class Database:
 				);
 		''' % vars )
 		self.connection.commit()
+		t2 = time.clock()
+		print 'addGeometryColumn %.1f seconds' %( t2 - t1 )
+	
+	def indexGeometryColumn( self, table, geom, index=None ):
+		index = index or ( 'idx_' + geom )
+		print 'indexGeometryColumn %s %s %s' %( table, geom, index )
+		vars = { 'table':table, 'geom':geom, 'index':index, }
+		t1 = time.clock()
+		self.cursor.execute('''
+			CREATE INDEX %(index)s ON %(table)s
+			USING GIST ( %(geom)s );
+		''' % vars )
+		self.connection.commit()
+		t2 = time.clock()
+		print 'CREATE INDEX %.1f seconds' %( t2 - t1 )
+		self.analyzeTable( table )
+	
+	def analyzeTable( self, table ):
+		print 'analyzeTable %s' %( table )
+		t1 = time.clock()
+		isolation_level = self.connection.isolation_level
+		self.connection.set_isolation_level(
+			psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT
+		)
+		self.cursor.execute('''
+			VACUUM ANALYZE %(table)s;
+		''' % { 'table':table } )
+		self.connection.set_isolation_level( isolation_level )
+		t2 = time.clock()
+		print 'VACUUM ANALYZE %.1f seconds' %( t2 - t1 )
 	
 	def addGoogleGeometry( self, table, llgeom, googeom ):
 		print 'addGoogleGeometry %s %s %s' %( table, llgeom, googeom )
 		self.addGeometryColumn( table, googeom, 3857, True )
+		t1 = time.clock()
 		self.cursor.execute('''
 			UPDATE
 				%(table)s
@@ -100,23 +148,29 @@ class Database:
 			'googeom': googeom,
 		})
 		self.connection.commit()
+		t2 = time.clock()
+		print 'UPDATE ST_Transform %.1f seconds' %( t2 - t1 )
 	
-	def addCountyLandGeometry( self, bgTable, bgGeom, countyTable, countyGeom ):
+	def addCountyLandGeometry( self,
+		sourceTable, sourceGeom,
+		countyTable, countyGeom
+	):
 		print 'addCountyLandGeometry %s %s %s %s' %(
-			bgTable, bgGeom, countyTable, countyGeom
+			sourceTable, sourceGeom, countyTable, countyGeom
 		)
 		self.addGeometryColumn( countyTable, countyGeom, -1, True )
+		t1 = time.clock()
 		self.cursor.execute('''
 			UPDATE
 				%(countyTable)s
 			SET
 				%(countyGeom)s = (
 					SELECT
-						ST_Multi( ST_Union( %(bgGeom)s ) )
+						ST_Multi( ST_Union( %(sourceGeom)s ) )
 					FROM
-						%(bgTable)s
+						%(sourceTable)s
 					WHERE
-						%(countyTable)s.countyfp10 = %(bgTable)s.countyfp10
+						%(countyTable)s.countyfp10 = %(sourceTable)s.countyfp10
 						AND
 						aland10 > 0
 					GROUP BY
@@ -125,40 +179,46 @@ class Database:
 			
 			SELECT Populate_Geometry_Columns();
 		''' % {
-			'bgTable': bgTable,
-			'bgGeom': bgGeom,
+			'sourceTable': sourceTable,
+			'sourceGeom': sourceGeom,
 			'countyTable': countyTable,
 			'countyGeom': countyGeom,
 		})
 		self.connection.commit()
+		t2 = time.clock()
+		print 'UPDATE ST_Union %.1f seconds' %( t2 - t1 )
 	
 	def makeGeoJSON( self, filename, table, geom, level ):
 		
-		# Temp filter for NYC test
-		filter = '''
-			(
-				countyfp10 = '005' OR
-				countyfp10 = '047' OR
-				countyfp10 = '061' OR
-				countyfp10 = '081' OR
-				countyfp10 = '085'
-			)
-		'''
+		srid = self.getSRID( table, geom )
+		digits = [ 0, 6 ][ srid == -1 ]  # integer only if google projection
 		
-		# Test for the simplify error
-		filter = '''
-			(
-				geoid10 = '360050504000'
-			)
-		'''
+		## Temp filter for NYC test
+		#filter = '''
+		#	(
+		#		countyfp10 = '005' OR
+		#		countyfp10 = '047' OR
+		#		countyfp10 = '061' OR
+		#		countyfp10 = '081' OR
+		#		countyfp10 = '085'
+		#	)
+		#'''
+		
+		## Test for the simplify error
+		#filter = '''
+		#	(
+		#		geoid10 = '360050504000'
+		#	)
+		#'''
 		
 		# Don't filter
 		filter = ''
 		
+		t1 = time.clock()
 		self.cursor.execute('''
 			SELECT
-				ST_AsGeoJSON( ST_Centroid( ST_Extent( %(geom)s ) ), 0 ),
-				ST_AsGeoJSON( ST_Extent( %(geom)s ), 0, 1 )
+				ST_AsGeoJSON( ST_Centroid( ST_Extent( %(geom)s ) ), %(digits)s ),
+				ST_AsGeoJSON( ST_Extent( %(geom)s ), %(digits)s, 1 )
 			FROM 
 				%(table)s
 			--WHERE
@@ -168,17 +228,20 @@ class Database:
 			'table': table,
 			'geom': geom,
 			'filter': filter,
+			'digits': digits,
 		})
 		( extentcentroidjson, extentjson ) = self.cursor.fetchone()
 		extentcentroid = json.loads( extentcentroidjson )
 		extent = json.loads( extentjson )
+		t2 = time.clock()
+		print 'ST_Extent %.1f seconds' %( t2 - t1 )
 		
 		self.cursor.execute('''
 			SELECT
 				geoid10, namelsad10,
 				intptlat10, intptlon10, 
-				ST_AsGeoJSON( ST_Centroid( %(geom)s ), 0, 1 ),
-				ST_AsGeoJSON( %(geom)s%(level)s, 0, 1 )
+				ST_AsGeoJSON( ST_Centroid( %(geom)s ), %(digits)s, 1 ),
+				ST_AsGeoJSON( %(geom)s%(level)s, %(digits)s, 1 )
 			FROM 
 				%(table)s
 			WHERE
@@ -190,7 +253,11 @@ class Database:
 			'geom': geom,
 			'level': level or '',
 			'filter': filter,
+			'digits': digits,
 		})
+		t3 = time.clock()
+		print 'SELECT rows %.1f seconds' %( t3 - t2 )
+		
 		features = []
 		for fips, name, lat, lng, centroidjson, geomjson in self.cursor.fetchall():
 			geometry = json.loads( geomjson )
@@ -210,12 +277,6 @@ class Database:
 			del geometry['bbox']
 		featurecollection = {
 			'type': 'FeatureCollection',
-			'crs': {
-				'type': 'name',
-				'properties': {
-					'name': 'urn:ogc:def:crs:EPSG::3857'
-				},
-			},
 			'properties': {
 				'kind': 'TODO',
 				'fips': 'TODO',
@@ -226,8 +287,19 @@ class Database:
 			'bbox': extent['bbox'],
 			'features': features,
 		}
+		if srid != -1:
+			featurecollection['crs'] = {
+				'type': 'name',
+				'properties': {
+					'name': 'urn:ogc:def:crs:EPSG::%d' % srid
+				},
+			}
+		t4 = time.clock()
+		print 'Make featurecollection %.1f seconds' %( t4 - t3 )
 		fcjson = json.dumps( featurecollection )
 		file( filename, 'wb' ).write( fcjson )
+		t5 = time.clock()
+		print 'Write JSON %.1f seconds' %( t5 - t4 )
 
 
 if __name__ == "__main__":

@@ -29,9 +29,16 @@ $().ready( function() {
 			feature.strokeWidth = 1;
 		});
 		
+		var goog =
+			geo.crs  &&
+			geo.crs.type == 'name'  &&
+			/:3857$|:900913$/.test( geo.crs.properties.name );
+		function toLat( m ) { return goog ? metersToLat(m) : m; }
+		function toLng( m ) { return goog ? metersToLng(m) : m; }
+		
 		var b = geo.bbox,
-			sw = new gm.LatLng( metersToLat(b[1]), metersToLng(b[0] ) ),
-			ne = new gm.LatLng( metersToLat(b[3]), metersToLng(b[2] ) ),
+			sw = new gm.LatLng( toLat(b[1]), toLng(b[0] ) ),
+			ne = new gm.LatLng( toLat(b[3]), toLng(b[2] ) ),
 			bounds = new gm.LatLngBounds( sw, ne );
 		map.fitBounds( bounds );
 		
