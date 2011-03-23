@@ -5,17 +5,7 @@ from ftplib import FTP
 from zipfile import ZipFile
 
 import private
-
-def mkdirp( path ):
-	try:
-		os.makedirs( path )
-	except OSError as ex:
-		if ex.errno != errno.EEXIST:
-			raise
-
-def chdirp( path ):
-	mkdirp( path )
-	os.chdir( path )
+from utility import chdirp, mkdirp
 
 
 class Writer( object ):
