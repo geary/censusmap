@@ -3,6 +3,7 @@
 import json
 import psycopg2
 
+import private
 
 def censusTableName( year, fips, kind ):
 	return 'tl_2010_%s_%s%s' %( fips, kind, year )
@@ -13,10 +14,10 @@ class Database:
 	def __init__( self, **kw ):
 		self.connection = psycopg2.connect(
 			host = kw.get( 'host', 'localhost' ),
-			port = kw.get( 'port', 5432 ),
+			port = kw.get( 'port', '5432' ),
 			database = kw.get( 'database' ),
-			user = kw.get( 'user', 'postgis' ),
-			password = kw.get( 'password', '' )
+			user = kw.get( 'user', private.POSTGRES_USERNAME ),
+			password = kw.get( 'password', private.POSTGRES_PASSWORD ),
 		)
 		self.cursor = self.connection.cursor()
 	
@@ -43,7 +44,8 @@ class Database:
 		self.cursor.execute('''
 			SELECT
 				AddGeometryColumn(
-					'public', '%(table)s', '%(googeom)s', 3857, 'MULTIPOLYGON', 2
+					'public', '%(table)s', '%(googeom)s',
+					3857, 'MULTIPOLYGON', 2
 				)
 			;
 			UPDATE
@@ -56,12 +58,47 @@ class Database:
 			;
 		''' % {
 			'table': table,
-			'googeom': googeom,
 			'llgeom': llgeom,
+			'googeom': googeom,
 		})
 		self.connection.commit()
 	
-	def makeGeoJSON( self, table, level ):
+	def addCountyLandGeometry( self, bgTable, bgGeom, countyTable, countyGeom ):
+		self.cursor.execute('''
+			ALTER TABLE %(countyTable)s DROP COLUMN %(countyGeom)s;
+			
+			SELECT
+				AddGeometryColumn(
+					'public', '%(countyTable)s', '%(countyGeom)s',
+					-1, 'MULTIPOLYGON', 2
+				);
+			
+			UPDATE
+				%(countyTable)s
+			SET
+				%(countyGeom)s = (
+					SELECT
+						ST_Multi( ST_Union( %(bgGeom)s ) )
+					FROM
+						%(bgTable)s
+					WHERE
+						%(countyTable)s.countyfp10 = %(bgTable)s.countyfp10
+						AND
+						aland10 > 0
+					GROUP BY
+						countyfp10
+				);
+			
+			SELECT Populate_Geometry_Columns();
+		''' % {
+			'bgTable': bgTable,
+			'bgGeom': bgGeom,
+			'countyTable': countyTable,
+			'countyGeom': countyGeom,
+		})
+		self.connection.commit()
+	
+	def makeGeoJSON( self, table, geom, level ):
 		
 		# Temp filter for NYC test
 		filter = '''
@@ -74,17 +111,28 @@ class Database:
 			)
 		'''
 		
+		# Test for the simplify error
+		filter = '''
+			(
+				geoid10 = '360050504000'
+			)
+		'''
+		
+		# Don't filter
+		filter = ''
+		
 		self.cursor.execute('''
 			SELECT
-				ST_AsGeoJSON( ST_Centroid( ST_Extent( goog_geom ) ), 0 ),
-				ST_AsGeoJSON( ST_Extent( goog_geom ), 0, 1 )
+				ST_AsGeoJSON( ST_Centroid( ST_Extent( %(geom)s ) ), 0 ),
+				ST_AsGeoJSON( ST_Extent( %(geom)s ), 0, 1 )
 			FROM 
 				%(table)s
-			WHERE
-				%(filter)s
+			--WHERE
+			--	%(filter)s
 			;
 		''' % {
 			'table': table,
+			'geom': geom,
 			'filter': filter,
 		})
 		( extentcentroidjson, extentjson ) = self.cursor.fetchone()
@@ -95,16 +143,17 @@ class Database:
 			SELECT
 				geoid10, namelsad10,
 				intptlat10, intptlon10, 
-				ST_AsGeoJSON( ST_Centroid( goog_geom ), 0, 1 ),
-				ST_AsGeoJSON( goog_geom%(level)s, 0, 1 )
+				ST_AsGeoJSON( ST_Centroid( %(geom)s ), 0, 1 ),
+				ST_AsGeoJSON( %(geom)s%(level)s, 0, 1 )
 			FROM 
 				%(table)s
 			WHERE
-				%(filter)s
-				AND aland10 > 0
+				aland10 > 0
+				-- AND %(filter)s
 			;
 		''' % {
 			'table': table,
+			'geom': geom,
 			'level': level or '',
 			'filter': filter,
 		})
