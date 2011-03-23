@@ -65,16 +65,27 @@ class Database:
 		})
 		return self.cursor.fetchone() is not None
 	
-	def addGoogleGeometry( self, table, llgeom, googeom ):
-		if self.columnExists( table, googeom ):
-			return
+	def addGeometryColumn( self, table, geom, srid=-1, always=False ):
+		vars = { 'table':table, 'geom':geom, 'srid':srid, }
+		if self.columnExists( table, geom ):
+			if not always:
+				return
+			self.cursor.execute('''
+				ALTER TABLE %(table)s DROP COLUMN %(geom)s;
+			''' % vars )
 		self.cursor.execute('''
 			SELECT
 				AddGeometryColumn(
-					'public', '%(table)s', '%(googeom)s',
-					3857, 'MULTIPOLYGON', 2
-				)
-			;
+					'public', '%(table)s', '%(geom)s',
+					%(srid)d, 'MULTIPOLYGON', 2
+				);
+		''' % vars )
+		self.connection.commit()
+	
+	def addGoogleGeometry( self, table, llgeom, googeom ):
+		print 'addGoogleGeometry %s %s %s' %( table, llgeom, googeom )
+		self.addGeometryColumn( table, googeom, 3857, True )
+		self.cursor.execute('''
 			UPDATE
 				%(table)s
 			SET
@@ -91,15 +102,11 @@ class Database:
 		self.connection.commit()
 	
 	def addCountyLandGeometry( self, bgTable, bgGeom, countyTable, countyGeom ):
+		print 'addCountyLandGeometry %s %s %s %s' %(
+			bgTable, bgGeom, countyTable, countyGeom
+		)
+		self.addGeometryColumn( countyTable, countyGeom, -1, True )
 		self.cursor.execute('''
-			ALTER TABLE %(countyTable)s DROP COLUMN %(countyGeom)s;
-			
-			SELECT
-				AddGeometryColumn(
-					'public', '%(countyTable)s', '%(countyGeom)s',
-					-1, 'MULTIPOLYGON', 2
-				);
-			
 			UPDATE
 				%(countyTable)s
 			SET
