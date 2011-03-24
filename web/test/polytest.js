@@ -33,14 +33,19 @@ $().ready( function() {
 			geo.crs  &&
 			geo.crs.type == 'name'  &&
 			/:3857$|:900913$/.test( geo.crs.properties.name );
-		function toLat( m ) { return goog ? metersToLat(m) : m; }
-		function toLng( m ) { return goog ? metersToLng(m) : m; }
 		
-		var b = geo.bbox,
-			sw = new gm.LatLng( toLat(b[1]), toLng(b[0] ) ),
-			ne = new gm.LatLng( toLat(b[3]), toLng(b[2] ) ),
-			bounds = new gm.LatLngBounds( sw, ne );
-		map.fitBounds( bounds );
+		function zoomToBbox( bbox ) {
+			function toLat( m ) { return goog ? metersToLat(m) : m; }
+			function toLng( m ) { return goog ? metersToLng(m) : m; }
+			
+			var
+				sw = new gm.LatLng( toLat(bbox[1]), toLng(bbox[0] ) ),
+				ne = new gm.LatLng( toLat(bbox[3]), toLng(bbox[2] ) ),
+				bounds = new gm.LatLngBounds( sw, ne );
+			map.fitBounds( bounds );
+		}
+		
+		zoomToBbox( geo.bbox );
 		
 		var overFeature;
 		var $where = $('#where');
@@ -57,12 +62,11 @@ $().ready( function() {
 						overFeature = feature;
 						$where.html( feature.properties.name );
 					}
+				},
+				click: function( event, where ) {
+					var feature = where && where.feature;
+					feature && zoomToBbox( feature.bbox );
 				}
-				//click: function( event, where ) {
-				//	var feature = where && where.feature;
-				//	//if( feature ) feature.container = geo;
-				//	//trigger( 'click', feature );
-				//}
 			}
 		});
 		gonzo.setMap( map );
