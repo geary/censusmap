@@ -190,6 +190,7 @@ class Database:
 	
 	def makeGeoJSON( self, filename, table, geom, level ):
 		
+		print 'makeGeoJSON', filename
 		srid = self.getSRID( table, geom )
 		digits = [ 0, 6 ][ srid == -1 ]  # integer only if google projection
 		
