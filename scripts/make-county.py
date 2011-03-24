@@ -2,20 +2,22 @@
 
 import pg
 
-state = '36'
-bgTable = pg.censusTableName( '10', state, 'bg' )
-countyTable = pg.censusTableName( '10', state, 'county' )
-
-bgGeom = 'the_geom'
-bgGoogGeom = 'goog_geom'
-
-countyGeom = 'the_geom_land'
-countyGoogGeom = 'goog_geom_land'
 
 def process():
-	db.addCountyLandGeometry( bgTable, bgGeom, countyTable, countyGeom )
-	db.addGoogleGeometry( bgTable, bgGeom, bgGoogGeom )
-	db.addGoogleGeometry( countyTable, countyGeom, countyGoogGeom )
+	target = 'county'
+	level = ''
+	for source in ( 'bg', 'tabblock' ):
+	#for source in ( 'bg' ):
+		for state in ( '34', '36' ):
+		#for state in ( '34', ):
+			sourceTable = pg.censusTableName( '10', state, source )
+			sourceGeom = 'the_geom'
+			targetTable = pg.censusTableName( '10', state, target )
+			targetGeom = 'the_geom_land_' + source
+			#db.indexGeometryColumn( sourceTable, sourceGeom )
+			db.addCountyLandGeometry( sourceTable, sourceGeom, targetTable, targetGeom )
+			#db.addGoogleGeometry( sourceTable, sourceGeom, sourceGoogGeom )
+			#db.addGoogleGeometry( targetTable, targetGeom, targetGoogGeom )
 
 
 def main():
@@ -23,6 +25,7 @@ def main():
 	db = pg.Database( database='census' )
 	process()
 	db.connection.close()
+	print 'Done!'
 	
 
 if __name__ == "__main__":
