@@ -4,21 +4,23 @@ import os.path
 from zipfile import ZipFile
 
 import pg
-
 import private
+import states
 
 
-year = '10'
-state = '36'
+year = '00'
 kind = 'tabblock'
-table = pg.censusTableName( year, state, kind )
 
 
 def process():
-	zipfile = os.path.join(
-		private.SHAPEFILE_PATH, kind.upper(), '20' + year, table + '.zip'
-	)
-	db.loadShapeZip( zipfile, table )
+	for state in states.array:
+		fips = state['fips']
+		table = pg.censusTableName( year, state['fips'], kind )
+		print 'Loading', fips, state['name']
+		zipfile = os.path.join(
+			private.SHAPEFILE_PATH, kind.upper(), '20' + year, table + '.zip'
+		)
+		db.loadShapeZip( zipfile, table )
 
 
 def main():
