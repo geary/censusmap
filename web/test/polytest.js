@@ -3,6 +3,9 @@
 // See UNLICENSE or http://unlicense.org/ for public domain notice.
 
 $().ready( function() {
+	// The RNG argument is a random seed, not a magic number
+	var rng = new RNG( 0.5526181932073087 )
+	
 	var gm = google.maps, gme = gm.event;
 	var $mapdiv = $('#map'), mapdiv = $mapdiv[0], map;
 	map = new gm.Map( mapdiv, {
@@ -22,8 +25,8 @@ $().ready( function() {
 	$.getJSON( file, function( geo ) {
 		if( geo.type != 'FeatureCollection' ) return;
 		geo.features.forEach( function( feature ) {
-			feature.fillColor = '#' + Math.random().toString(16).slice(2,8);
-			feature.fillOpacity = Math.random() * .5 + .1;
+			feature.fillColor = '#' + rng.nextFloat().toString(16).slice(2,8);
+			feature.fillOpacity = rng.nextFloat() * .5 + .1;
 			feature.strokeColor = '#000000';
 			feature.strokeOpacity = 0.2;
 			feature.strokeWidth = 1;
