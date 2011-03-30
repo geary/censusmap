@@ -151,38 +151,40 @@ class Database:
 		t2 = time.clock()
 		print 'UPDATE ST_Transform %.1f seconds' %( t2 - t1 )
 	
-	def addCountyLandGeometry( self,
+	def addLandGeometry( self,
 		sourceTable, sourceGeom,
-		countyTable, countyGeom
+		targetTable, targetGeom,
+		idColumn
 	):
 		print 'addCountyLandGeometry %s %s %s %s' %(
-			sourceTable, sourceGeom, countyTable, countyGeom
+			sourceTable, sourceGeom, targetTable, targetGeom
 		)
-		self.addGeometryColumn( countyTable, countyGeom, -1, True )
+		self.addGeometryColumn( targetTable, targetGeom, -1, True )
 		t1 = time.clock()
 		self.cursor.execute('''
 			UPDATE
-				%(countyTable)s
+				%(targetTable)s
 			SET
-				%(countyGeom)s = (
+				%(targetGeom)s = (
 					SELECT
 						ST_Multi( ST_Union( %(sourceGeom)s ) )
 					FROM
 						%(sourceTable)s
 					WHERE
-						%(countyTable)s.countyfp10 = %(sourceTable)s.countyfp10
+						%(targetTable)s.%(idColumn)s = %(sourceTable)s.%(idColumn)s
 						AND
 						aland10 > 0
 					GROUP BY
-						countyfp10
+						%(idColumn)s
 				);
 			
 			SELECT Populate_Geometry_Columns();
 		''' % {
 			'sourceTable': sourceTable,
 			'sourceGeom': sourceGeom,
-			'countyTable': countyTable,
-			'countyGeom': countyGeom,
+			'targetTable': targetTable,
+			'targetGeom': targetGeom,
+			'idColumn': idColumn,
 		})
 		self.connection.commit()
 		t2 = time.clock()
