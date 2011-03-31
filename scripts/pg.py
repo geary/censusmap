@@ -190,10 +190,10 @@ class Database:
 		t2 = time.clock()
 		print 'UPDATE ST_Union %.1f seconds' %( t2 - t1 )
 	
-	def makeGeoJSON( self, filename, table, geom, level ):
+	def makeGeoJSON( self, filename, table, boxGeom, polyGeom, level ):
 		
 		print 'makeGeoJSON', filename
-		srid = self.getSRID( table, geom )
+		srid = self.getSRID( table, polyGeom )
 		digits = [ 0, 6 ][ srid == -1 ]  # integer only if google projection
 		
 		## Temp filter for NYC test
@@ -220,8 +220,8 @@ class Database:
 		t1 = time.clock()
 		self.cursor.execute('''
 			SELECT
-				ST_AsGeoJSON( ST_Centroid( ST_Extent( %(geom)s ) ), %(digits)s ),
-				ST_AsGeoJSON( ST_Extent( %(geom)s ), %(digits)s, 1 )
+				ST_AsGeoJSON( ST_Centroid( ST_Extent( %(polyGeom)s ) ), %(digits)s ),
+				ST_AsGeoJSON( ST_Extent( %(boxGeom)s ), %(digits)s, 1 )
 			FROM 
 				%(table)s
 			--WHERE
@@ -229,7 +229,8 @@ class Database:
 			;
 		''' % {
 			'table': table,
-			'geom': geom,
+			'boxGeom': boxGeom,
+			'polyGeom': polyGeom,
 			'filter': filter,
 			'digits': digits,
 		})
@@ -243,8 +244,8 @@ class Database:
 			SELECT
 				geoid10, namelsad10,
 				intptlat10, intptlon10, 
-				ST_AsGeoJSON( ST_Centroid( %(geom)s ), %(digits)s, 1 ),
-				ST_AsGeoJSON( %(geom)s%(level)s, %(digits)s, 1 )
+				ST_AsGeoJSON( ST_Centroid( %(polyGeom)s ), %(digits)s, 1 ),
+				ST_AsGeoJSON( %(polyGeom)s%(level)s, %(digits)s, 1 )
 			FROM 
 				%(table)s
 			WHERE
@@ -253,7 +254,7 @@ class Database:
 			;
 		''' % {
 			'table': table,
-			'geom': geom,
+			'polyGeom': polyGeom,
 			'level': level or '',
 			'filter': filter,
 			'digits': digits,

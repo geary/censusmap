@@ -4,3 +4,7 @@
 '''
 
 SHAPEFILE_PATH = '/your/shapefile/download/path'
+GEOJSON_PATH = '/your/geojson/output/path'
+
+POSTGRES_USERNAME = 'postgres'
+POSTGRES_PASSWORD = ''

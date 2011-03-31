@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 
-import pg
-
+import pg, private, runspec
 
 def process():
-	kind = 'county'
 	level = ''
-	for source in ( 'bg', 'tabblock' ):
-		for state in ( '34', '36' ):
-			table = pg.censusTableName( '10', state, kind )
-			geom = 'the_geom_land_' + source
+	for state in ( '06', '34', '36', ):
+		for run in runspec.runs:
+			( source, sourceGeom, target, targetGeom ) = run
+			table = pg.censusTableName( '10', state, target )
+			boxGeom = 'the_geom'
 			#db.addGoogleGeometry( table, geom, googGeom )
 			#for level in ( '', '10', '100', '1000', '10000' ):
 			#	db.makeGeoJSON( opt.table, level )
-			filename = '../web/test/%s-%s.json' %( table, source )
-			db.makeGeoJSON( filename, table, geom, '' )
+			#filename = '../web/test/%s-%s.json' %( table, targetGeom )
+			filename = '%s/%s-%s.json' %(
+				private.GEOJSON_PATH, table, targetGeom
+			)
+			db.makeGeoJSON( filename, table, boxGeom, targetGeom, '' )
 
 
 def main():
