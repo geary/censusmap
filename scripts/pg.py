@@ -106,7 +106,6 @@ class Database:
 	
 	def addGeometryColumn( self, table, geom, srid=-1, always=False ):
 		print 'addGeometryColumn %s %s' %( table, geom )
-		t1 = time.clock()
 		( schema, table ) = splitTableName( table )
 		vars = { 'schema':schema, 'table':table, 'geom':geom, 'srid':srid, }
 		if self.columnExists( table, geom ):
@@ -123,8 +122,6 @@ class Database:
 				);
 		''' % vars )
 		self.connection.commit()
-		t2 = time.clock()
-		print 'addGeometryColumn %.1f seconds' %( t2 - t1 )
 	
 	def indexGeometryColumn( self, table, geom, index=None ):
 		index = index or ( 'idx_' + geom )
