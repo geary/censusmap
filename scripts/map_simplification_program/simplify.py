@@ -199,9 +199,6 @@ def multiPol2text(poly):
 # -> get the arguments from the command line and call the simplification function
 def main():
 	'Creation de la table de sortie par rapport au dmin'
-	global cur
-	global connexion
-
 	# check the arguments from the command line
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], 'i:m:v:t:g:d:u:p:H:h',['help'])
@@ -233,8 +230,18 @@ def main():
 			password = a
 		if o == '-H':
 			hostname = a
+	run(
+		username, password, hostname, database,
+		tableGeo, colGeo, tableVertex, colId, minDistance
+	)
 
 
+def run(
+	username, password, hostname, database,
+	tableGeo, colGeo, tableVertex, colId, minDistance
+):
+	global cur
+	global connexion
 
 	# connect to the database
 	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(username,password,hostname,database))

@@ -326,8 +326,6 @@ def vect(o,e):
 # function main 
 # -> get the arguments from the command line and call the simplification function
 def main() :
-	print 'Vertex Table Generation'
-	global connexion,cur
 	# check the arguments from the command line
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], 't:v:i:g:m:d:u:p:H:h',['help'])
@@ -360,6 +358,17 @@ def main() :
 		if o == '-H':
 			hostname = a
 		
+	run(
+		username, password, hostname, database,
+		tableGeo, colGeo, schemaVertex, colId, minDistance
+	)
+
+def run(
+	username, password, hostname, database,
+	tableGeo, colGeo, schemaVertex, colId, minDistance
+):
+	print 'Vertex Table Generation %s %s %d' %( tableGeo, colGeo, minDistance )
+	global connexion,cur
 	# connect to the database
 	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(username,password,hostname,database))
 	cur = connexion.cursor()
