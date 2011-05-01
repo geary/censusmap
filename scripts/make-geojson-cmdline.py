@@ -2,15 +2,18 @@
 
 from optparse import OptionParser
 
-import pg
+import pg, private #, runspec
 
 
 def process():
-	db.addGoogleGeometry( opt.table, opt.llgeom, opt.googeom )
-	#for level in ( '', '10', '100', '1000', '10000' ):
-	#	db.makeGeoJSON( opt.table, level )
-	db.makeGeoJSON( opt.table, '' )
-	#db.makeCounties( opt.table, opt.table + '-county', opt.llgeom, opt.googeom )
+	#db.addGoogleGeometry( opt.table, opt.llgeom, opt.googeom )
+	for level in ( '100000', '10000', '1000', '100' ):
+		polyGeom = boxGeom = opt.googeom
+		if level: polyGeom += '_' + level
+		filename = '%s/%s-%s.json' %(
+			private.GEOJSON_PATH, opt.table, polyGeom
+		)
+		db.makeGeoJSON( filename, opt.table, boxGeom, polyGeom )
 
 
 def main():
@@ -64,7 +67,7 @@ def options():
 	parser.add_option(
 		'-l', '--llgeom',
 		action='store', type='string', dest='llgeom',
-		default='the_geom',
+		default='full_geom',
 		help='Latitude/Longitude geometry column name'
 	)
 	global opt, args
