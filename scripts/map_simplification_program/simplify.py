@@ -36,13 +36,13 @@ import polyYacc
 ##############################################################################################
 # Fonction createTable
 # @param : database name, schema name, table name, geometry column name, id column name, the
-#                  minimal distance value and the user/password/host name
-def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
+#                  minimal distance value and the username/password/host name
+def simplify(database,tableVertex,tableGeo,colGeo,colId,minDistance,username,password,hostname):
 	#schema and table name
-	(schema,table) = split(table)
+	(schema,tableGeo) = split(tableGeo)
 	
 	# check if vertex table exists
-	com = 'select id from %s limit 1'%vertex
+	com = 'select id from %s limit 1'%tableVertex
 	try:
 		cur.execute(com)
 	except psycopg2.DatabaseError: # if not
@@ -50,10 +50,10 @@ def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
 		sys.exit()
 	
 	# name of the extra column generated
-	xtraCol = colGeo + str(dmin)
+	xtraCol = colGeo + str(minDistance)
 		
 	# get the SRID from the entry table
-	com = "SELECT find_srid('%s','%s','%s')"%(schema,table,colGeo)
+	com = "SELECT find_srid('%s','%s','%s')"%(schema,tableGeo,colGeo)
 	cur.execute(com)
 	
 	# srid = -1, by default
@@ -63,7 +63,7 @@ def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
 	# get the GEOMETRYTYPE from the entry table ... must be MULTIPOLYGON for now
 	com = 'select type from geometry_columns\n'
 	com = com + "where f_table_schema    = '%s' and\n"%(schema)
-	com = com + "      f_table_name      = '%s' and\n"%(table)
+	com = com + "      f_table_name      = '%s' and\n"%(tableGeo)
 	com = com + "      f_geometry_column = '%s'\n"%(colGeo)
 	cur.execute(com)
 	s = cur.fetchall()
@@ -74,7 +74,7 @@ def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
 		
 	
 	# drop if the extra column already exists
-	com = 'ALTER TABLE %s.%s DROP COLUMN %s CASCADE'%(schema,table,xtraCol)
+	com = 'ALTER TABLE %s.%s DROP COLUMN %s CASCADE'%(schema,tableGeo,xtraCol)
 		
 	# exception if this table does not exist
 	try:
@@ -86,7 +86,7 @@ def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
 	# delete from the geometry_column table every data entry relative to the extra column
 	com = 'DELETE FROM geometry_columns\n'
 	com = com + "WHERE f_table_schema    = '%s'"%schema
-	com = com + "  AND f_table_name      = '%s'"%table
+	com = com + "  AND f_table_name      = '%s'"%tableGeo
 	com = com + "  AND f_geometry_column = '%s'"%xtraCol
 	try:
 		cur.execute(com)
@@ -94,7 +94,7 @@ def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
 		pass
 	connexion.commit()
 	# create the onew column
-	com = "SELECT AddGeometryColumn('%s','%s','%s',%i,'%s',2)"%(schema,table,xtraCol,srid,geometryType)
+	com = "SELECT AddGeometryColumn('%s','%s','%s',%i,'%s',2)"%(schema,tableGeo,xtraCol,srid,geometryType)
 	cur.execute(com)
 
 	
@@ -102,26 +102,26 @@ def simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname):
 	# -> get from the table passed as argument the id and the geometry data as text
 	#        geometry data <-> polygon coordinates
 	com = 'SELECT %s,AsText(%s) '%(colId,colGeo)
-	com = com + 'FROM %s.%s  ORDER BY %s'%(schema,table,colId)
+	com = com + 'FROM %s.%s  ORDER BY %s'%(schema,tableGeo,colId)
 	cur.execute(com)
 
 	for lid,lgeom in cur.fetchall():
 		print lid
-		updateCol(lid,lgeom,schema,table,xtraCol,vertex,srid,colId)
+		updateCol(lid,lgeom,schema,tableGeo,xtraCol,tableVertex,srid,colId)
 	
 	
 	
 	
 	# SQL request:
 	# -> index creation on extra col
-	com = 'CREATE INDEX idx_%s_%s_%s'%(schema,table,xtraCol)
-	com = com + ' ON %s.%s '%(schema,table)
+	com = 'CREATE INDEX idx_%s_%s_%s'%(schema,tableGeo,xtraCol)
+	com = com + ' ON %s.%s '%(schema,tableGeo)
 	com = com + 'USING gist(%s)'%xtraCol
 
 	cur.execute(com)
 	
 	
-def updateCol(lid,lgeom,schema,table,newcol,vertex,srid,colId):
+def updateCol(lid,lgeom,schema,tableGeo,newcol,tableVertex,srid,colId):
 	#print '-----------------------------------------------------'
 	#print lgeom
 	poly = polyYacc.polyScan(lgeom)
@@ -137,7 +137,7 @@ def updateCol(lid,lgeom,schema,table,newcol,vertex,srid,colId):
 				y = round(p[1])
 
 				# select if the vertex is simplifiable or not
-				com = 'SELECT simplif,nref from %s WHERE x=%d AND y=%d'%(vertex,x,y)
+				com = 'SELECT simplif,nref from %s WHERE x=%d AND y=%d'%(tableVertex,x,y)
 				cur.execute(com)
 				for res in cur.fetchall():
 					if res[0] == False or res[1] >= 3: # if not simplifiable
@@ -157,7 +157,7 @@ def updateCol(lid,lgeom,schema,table,newcol,vertex,srid,colId):
 	#print polytext
 	#print '-----------------------------------------------------'
 
-	com = 'UPDATE %s.%s'%(schema,table)
+	com = 'UPDATE %s.%s'%(schema,tableGeo)
 	com = com + " SET %s = GeometryFromText('%s',%s)"%(newcol,polytext,srid)
 	com = com + ' WHERE %s = %i'%(colId,lid)
 	cur.execute(com)
@@ -216,31 +216,31 @@ def main():
 			usage()
 			sys.exit()
 		if o == '-v':
-			vertex= a
+			tableVertex= a
 		if o == '-t':
-			table= a
+			tableGeo= a
 		if o == '-i':
 			colId= a
 		if o == '-g':
 			colGeo = a
 		if o == '-m':
-			dmin = int(a)
+			minDistance = int(a)
 		if o == '-d':
-			dbase = a
+			database = a
 		if o == '-u':
-			user = a
+			username = a
 		if o == '-p':
-			pwd = a
+			password = a
 		if o == '-H':
 			hostname = a
 
 
 
 	# connect to the database
-	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(user,pwd,hostname,dbase))
+	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(username,password,hostname,database))
 	cur = connexion.cursor()
 	# simplification function
-	simplify(dbase,vertex,table,colGeo,colId,dmin,user,pwd,hostname)
+	simplify(database,tableVertex,tableGeo,colGeo,colId,minDistance,username,password,hostname)
 	connexion.commit()
 	connexion.close()
 

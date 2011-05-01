@@ -32,16 +32,16 @@ import psycopg2
 import polyYacc
 
 ##############################################################################################
-def vertex(schemaVertex,tableIn,colGeo,colId,dmin) :
+def vertex(schemaVertex,tableGeo,colGeo,colId,minDistance) :
 	
 	# table name which will be create
-	tableVertex = "vertex" + str(dmin)
+	tableVertex = "vertex" + str(minDistance)
 	sequence = '%s_%s_id_seq'%(schemaVertex,tableVertex)
 
 	vertex = createVertex(schemaVertex,tableVertex,sequence)
 
 	# Populate the vertex table
-	populateVertex(vertex,sequence,colId,colGeo,tableIn,dmin)
+	populateVertex(vertex,sequence,colId,colGeo,tableGeo,minDistance)
 
 
 
@@ -91,9 +91,10 @@ def createVertex(schemaVertex,tableVertex,sequence) :
 	return vertex  
 	
 
-def populateVertex(vertex,sequence,colId,colGeo,tableIn,dmin)   :
+def populateVertex(vertex,sequence,colId,colGeo,tableGeo,minDistance):
+	print tableGeo
 	# the geometrytype must be MULTIPOLYGON
-	(schema,table) = split(tableIn)
+	(schema,table) = split(tableGeo)
 	com = 'select type from geometry_columns\n'
 	com = com + "where f_table_schema    = '%s' and\n"%(schema)
 	com = com + "      f_table_name      = '%s' and\n"%(table) 
@@ -107,7 +108,7 @@ def populateVertex(vertex,sequence,colId,colGeo,tableIn,dmin)   :
 	#geometry data <-> polygon coordinates
 	com = ''   
 	com = com + 'SELECT %s,SRID(%s),AsText(%s) '%(colId,colGeo,colGeo)
-	com = com + 'FROM %s  ORDER BY %s'%(tableIn,colId)
+	com = com + 'FROM %s  ORDER BY %s'%(tableGeo,colId)
 	cur.execute(com)
 	
 	# map simplification algorithm  
@@ -119,7 +120,7 @@ def populateVertex(vertex,sequence,colId,colGeo,tableIn,dmin)   :
 		# add all those vertex into the vertex table created before (all vertex are marked as simplifiable)
 		res = addPoints(poly, vertex,sequence)
 		# map simplification algorithm, search for all points which are not simplifiable
-		polySimplif(res,dmin,vertex)
+		polySimplif(res,minDistance,vertex)
 		# add few points located on the border of the map as not simplifiable (see documentation for further information)
 		addBorder(res,vertex)
 
@@ -134,13 +135,13 @@ def split(name) :
 ##############################################################################################
 # function polySimplif
 # @param : the list of triplet (x,y,id), minimal distance value, name of the table where the vertex are stored
-def polySimplif(poly,dmin,tableVertex):
+def polySimplif(poly,minDistance,tableVertex):
 	print 'Simplify ...'
 	# for each ring in a polygon
 	for po in poly:
 		for ring in po:
 			# map simplification algorithm
-			simplif(ring,dmin*dmin,tableVertex)
+			simplif(ring,minDistance*minDistance,tableVertex)
 
 
 ##############################################################################################
@@ -331,14 +332,14 @@ def main() :
 		# print help information and exit:
 		usage()
 		sys.exit(2)
-	
+		
 	# parse the command line
 	for o, a in opts:
 		if o in ("-h", "--help"):
 			usage()
 			sys.exit()
 		if o == '-t':
-			tableIn= a
+			tableGeo= a
 		if o == '-v' :
 			schemaVertex = a
 		if o == '-i':
@@ -346,28 +347,28 @@ def main() :
 		if o == '-g':
 			colGeo = a
 		if o == '-m':
-			dmin = int(a)
+			minDistance = int(a)
 		if o == '-d':
-			dbase = a
+			database = a
 		if o == '-u':
-			user = a
+			username = a
 		if o == '-p':
-			pwd = a
+			password = a
 		if o == '-H':
 			hostname = a
-	
+		
 	# connect to the database
-	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(user,pwd,hostname,dbase))
+	connexion = psycopg2.connect("user = '%s' password = '%s' host = '%s' dbname = '%s'"%(username,password,hostname,database))
 	cur = connexion.cursor()
 	# simplification function
-	vertex(schemaVertex,tableIn,colGeo,colId,dmin)
+	vertex(schemaVertex,tableGeo,colGeo,colId,minDistance)
 	connexion.commit()
 	connexion.close()
 
 ##############################################################################################
 # Usage function
 def usage() :
-	print "usage : vertex.py  -H <hostname> -u <user name> -p <password> -d <base name> -t <table> -v <vertex schema>-i <id column name> -g <geometry column name> -m <minimal distance value>"
+	print "usage : vertex.py  -H <hostname> -u <username> -p <password> -d <base name> -t <table> -v <vertex schema>-i <id column name> -g <geometry column name> -m <minimal distance value>"
 
 	
 ##############################################################################################
