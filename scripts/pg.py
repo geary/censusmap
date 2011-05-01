@@ -7,8 +7,11 @@ from zipfile import ZipFile
 import private
 
 
-def censusTableName( year, fips, kind ):
-	return 'tl_2010_%s_%s%s' %( fips, kind, year )
+def splitTableName( table ):
+	split = table.split('.')
+	if len(split) == 1:
+		split = [ 'public', table ]
+	return split
 
 
 class Database:
@@ -24,21 +27,40 @@ class Database:
 		)
 		self.cursor = self.connection.cursor()
 	
-	def loadShapeZip( self, zipfile, tablename ):
+	def createGeoDatabase( self, database ):
+		self.cursor.execute('''
+			CREATE DATABASE %(database)s
+				WITH ENCODING = 'UTF8'
+			TEMPLATE = template_postgis
+			CONNECTION LIMIT = -1;
+		''' % {
+			'database': database,
+		})
+		self.connection.commit()
+	
+	def createSchema( self, schema ):
+		self.cursor.execute('''
+			CREATE SCHEMA %(schema)s;
+		''' % {
+			'schema': schema,
+		})
+		self.connection.commit()
+	
+	def loadShapeZip( self, zipfile, tempdir, tablename, create ):
 		zipname = os.path.basename( zipfile )
 		basename = os.path.splitext( zipname )[0]
 		shpname = basename + '.shp'
 		sqlname = basename + '.sql'
-		unzipdir = tempfile.mkdtemp()
-		print 'Unzipping %s' % zipname
+		unzipdir = tempfile.mkdtemp( dir=tempdir )
+		print 'Unzipping %s to %s' %( zipname, unzipdir )
 		ZipFile( zipfile, 'r' ).extractall( unzipdir )
 		shpfile = os.path.join( unzipdir, shpname )
 		sqlfile = os.path.join( unzipdir, sqlname )
 		t1 = time.clock()
 		print 'Running shp2pgsql'
 		os.system(
-			'shp2pgsql %s %s %s >%s' %(
-				shpfile, tablename, self.database, sqlfile
+			'shp2pgsql -g full_geom -s 4269 -W LATIN1 %s %s %s %s >%s' %(
+				( '-a', '-c -I' )[create], shpfile, tablename, self.database, sqlfile
 			)
 		)
 		t2 = time.clock()
@@ -55,9 +77,11 @@ class Database:
 		print 'loadShapeZip done'
 	
 	def getSRID( self, table, column ):
+		( schema, table ) = splitTableName( table )
 		self.cursor.execute('''
-			SELECT Find_SRID( 'public', '%(table)s', '%(column)s');
+			SELECT Find_SRID( '%(schema)s', '%(table)s', '%(column)s');
 		''' % {
+			'schema': schema,
 			'table': table,
 			'column': column,
 		})
@@ -83,17 +107,18 @@ class Database:
 	def addGeometryColumn( self, table, geom, srid=-1, always=False ):
 		print 'addGeometryColumn %s %s' %( table, geom )
 		t1 = time.clock()
-		vars = { 'table':table, 'geom':geom, 'srid':srid, }
+		( schema, table ) = splitTableName( table )
+		vars = { 'schema':schema, 'table':table, 'geom':geom, 'srid':srid, }
 		if self.columnExists( table, geom ):
 			if not always:
 				return
 			self.cursor.execute('''
-				ALTER TABLE %(table)s DROP COLUMN %(geom)s;
+				ALTER TABLE %(schema)s.%(table)s DROP COLUMN %(geom)s;
 			''' % vars )
 		self.cursor.execute('''
 			SELECT
 				AddGeometryColumn(
-					'public', '%(table)s', '%(geom)s',
+					'%(schema)s', '%(table)s', '%(geom)s',
 					%(srid)d, 'MULTIPOLYGON', 2
 				);
 		''' % vars )
@@ -137,10 +162,7 @@ class Database:
 			UPDATE
 				%(table)s
 			SET
-				%(googeom)s = ST_Transform(
-					ST_SetSRID( %(llgeom)s, 4269 ),
-					3857
-				)
+				%(googeom)s = ST_Transform( %(llgeom)s, 3857 )
 			;
 		''' % {
 			'table': table,
@@ -190,7 +212,7 @@ class Database:
 		t2 = time.clock()
 		print 'UPDATE ST_Union %.1f seconds' %( t2 - t1 )
 	
-	def makeGeoJSON( self, filename, table, boxGeom, polyGeom, level ):
+	def makeGeoJSON( self, filename, table, boxGeom, polyGeom ):
 		
 		print 'makeGeoJSON', filename
 		srid = self.getSRID( table, polyGeom )
@@ -245,8 +267,8 @@ class Database:
 				geoid10, namelsad10,
 				intptlat10, intptlon10, 
 				ST_AsGeoJSON( ST_Centroid( %(polyGeom)s ), %(digits)s, 1 ),
-				ST_AsGeoJSON( %(polyGeom)s%(level)s, %(digits)s, 1 )
-			FROM 
+				ST_AsGeoJSON( %(polyGeom)s, %(digits)s, 1 )
+			FROM
 				%(table)s
 			WHERE
 				aland10 > 0
@@ -255,7 +277,6 @@ class Database:
 		''' % {
 			'table': table,
 			'polyGeom': polyGeom,
-			'level': level or '',
 			'filter': filter,
 			'digits': digits,
 		})
