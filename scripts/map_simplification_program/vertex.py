@@ -41,7 +41,10 @@ def vertex(schemaVertex,tableGeo,colGeo,colId,minDistance) :
 	vertex = createVertex(schemaVertex,tableVertex,sequence)
 
 	# Populate the vertex table
-	populateVertex(vertex,sequence,colId,colGeo,tableGeo,minDistance)
+	if isinstance( tableGeo, basestring ):
+		tableGeo = [ tableGeo ]
+	for t in tableGeo:
+		populateVertex(vertex,sequence,colId,colGeo,t,minDistance)
 
 
 
