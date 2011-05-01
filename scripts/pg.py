@@ -209,6 +209,41 @@ class Database:
 		t2 = time.clock()
 		print 'UPDATE ST_Union %.1f seconds' %( t2 - t1 )
 	
+	def simplifyGeometry( self,
+		table, sourceGeom, targetGeom, tolerance
+	):
+		print 'simplifyGeometry %s %s %s %f' %(
+			table, sourceGeom, targetGeom, tolerance
+		)
+		self.addGeometryColumn(
+			table, targetGeom,
+			self.getSRID(table,sourceGeom), True
+		)
+		t1 = time.clock()
+		self.cursor.execute('''
+			UPDATE
+				%(table)s
+			SET
+				%(targetGeom)s =
+					ST_Multi(
+						ST_SimplifyPreserveTopology(
+							%(sourceGeom)s,
+							%(tolerance)f
+						)
+					)
+			;
+			
+			SELECT Populate_Geometry_Columns();
+		''' % {
+			'table': table,
+			'sourceGeom': sourceGeom,
+			'targetGeom': targetGeom,
+			'tolerance': tolerance,
+		})
+		self.connection.commit()
+		t2 = time.clock()
+		print 'UPDATE ST_SimplifyPreserveTopology %.1f seconds' %( t2 - t1 )
+	
 	def makeGeoJSON( self, filename, table, boxGeom, polyGeom ):
 		
 		print 'makeGeoJSON', filename
